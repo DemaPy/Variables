@@ -61,21 +61,38 @@
         left: 0;
         font-weight: 600;
       }
+
+      #preview {
+        position: relative;
+      }
+
+      #preview::before {
+        content: "Preview";
+        position: absolute;
+        top: -5%;
+        left: 0;
+        font-weight: 600;
+      }
     </style>
   </head>
   <body>
     <div class="container">
       <div contenteditable="true" id="editor"></div>
       <div id="placeholders"></div>
+      <div id="preview"></div>
     </div>
     <script src="https://unpkg.com/mustache@latest"></script>
-    <script>
+    <script type="module">
+      import htmlEntities from "https://cdn.jsdelivr.net/npm/html-entities@2.5.2/+esm";
       const BRACES_COUNT = 4;
       const editor = document.querySelector("#editor");
       const placeholders = document.querySelector("#placeholders");
+      const preview = document.querySelector("#preview");
       const content = {
         template: "",
         placeholders: [],
+        render_data: {},
+        raw_content: ``
       };
 
       function getCursorPos(el) {
@@ -90,9 +107,9 @@
           // Set for rangeClone range-end NODE and range-end OFFSET. (from original range)
           // endContainer will be changed to range.endContainer NODE. (from original range)
           cloneRange.setEnd(range.endContainer, range.endOffset);
-          console.log(range.endContainer);
-          console.log(range.endOffset);
-          console.log(cloneRange);
+          // console.log(range.endContainer);
+          // console.log(range.endOffset);
+          // console.log(cloneRange);
           pos = cloneRange.toString().length
         }
 
@@ -112,43 +129,9 @@
         return currentPos;
       }
 
-      // editor.addEventListener("input", (ev) => {
-      //   const nodes = ev.target.childNodes;
-      //   const value = ev.target.textContent;
-      //   if (!nodes.length) return;
-      //   const cursor_position = getCursorPos(ev.target);
-      //   const cursor_position2 = getCursorPositionRelativeToText(ev.target);
-
-      //   console.log(cursor_position);
-      //   console.log(cursor_position2);
-        
-      //   editor.innerHTML = value;
-      //   return;
-
-      //   // let selection = window.getSelection();
-      //   // let range = new Range()
-      //   // range.setStart(ev.target, cursor_position);
-      //   // range.collapse(true);
-      //   // selection.addRange(range)
-      //   // // Get current selection
-      //   // const selection = window.getSelection();
-      //   // // Remove current selection
-      //   // selection.removeAllRanges();
-      //   // // Create new range for selection
-      //   // const range = new Range();
-      //   // // Range start work with nodes.
-      //   // // if editor node have only #text node with content (sakjdnajsdohoas)
-      //   // // range will have complains if we will sen start 1, end 3. Because editor.childNodes returns only 1 node (#text node).
-      //   // range.setStart(nodes[0], Math.min(nodes[0].length, 4));
-      //   // // Range should be collapsed, since I don't need selected range from start to end.
-      //   // // Just need to support caret position.
-      //   // range.collapse();
-      //   // selection.addRange(range);
-      // });
-
-
       editor.addEventListener("input", (ev) => {
         const value = ev.target.innerHTML;
+        content.raw_content = parseToRaw(value)
         let cursorPosition = getCursorPos(ev.target);
         
         if (triggerPlaceholder(value)) {
@@ -164,6 +147,16 @@
         setCursorAtNodePosition(editor, cursorPosition);
       });
 
+      function parseToRaw(html) {
+        const dom = new DOMParser().parseFromString(html, 'text/html')
+        const spans = dom.querySelectorAll("span[contenteditable=false]")
+        for (const span of [...spans]) {
+          span.insertAdjacentText("beforebegin" ,"{{"+ span.textContent + "}}")
+          span.remove()
+        }
+        return dom.body.innerHTML?.replaceAll("<br>", "\n")|| ""
+      }
+
       function renderFormFields() {
         placeholders.innerHTML = "";
         if (content.placeholders.length === 0) return;
@@ -174,12 +167,20 @@
         for (const field of fields) {
           const label = document.createElement("label");
           const input = document.createElement("input");
-          input.addEventListener("click", (ev) => {
-            const value = ev.target.value;
-          });
+          input.addEventListener("input", (ev) => {
+              const value = ev.target.value;
+              if (value.trim()) {
+                content.render_data = {
+                  ...content.render_data,
+                  [field.title]: value,
+                };
+                renderPreview();
+              }
+            });
           input.type = "text";
           label.textContent = field.title;
           label.append(input);
+          input.value = content.render_data[field.title] || "";
           label.style =
             "display: flex; flex-direction: column; text-transform: capitalize;";
           nodes.push(label);
@@ -198,7 +199,6 @@
       });
 
       const triggerPlaceholder = (text) => {
-        content.template = text;
         let isPlaceholderAdded = false;
         const withplaceholders = text.replace(/{{(.+)}}/g, (value) => {
           isPlaceholderAdded = true;
@@ -250,16 +250,24 @@
         // When setting counted range based from posiriob props, system constantly support cursor position in cycle.
         selection.addRange(range);
       }
-    </script>
-    <script>
-      const input = document.querySelector("#input");
-      input.addEventListener("input", (ev) => {
-        const beforeStart = ev.target.selectionStart;
-        const beforeEnd = ev.target.selectionEnd;
-        ev.target.value = ev.target.value.toUpperCase();
-        input.selectionStart = beforeStart;
-        input.selectionEnd = beforeEnd;
-      });
+    
+      function replaceNbsps(str) {
+          var re = new RegExp(String.fromCharCode(160), "g");
+          return str.replace(re, " ");
+      }
+
+      function renderPreview() {
+        console.log(content.raw_content);
+          preview.innerText = "";
+          const clearHTML = replaceNbsps(
+            htmlEntities.decode(content.raw_content)
+          );
+          
+          preview.innerText = Mustache.render(
+            clearHTML,
+            content.render_data
+          );
+        }
     </script>
   </body>
 </html>
