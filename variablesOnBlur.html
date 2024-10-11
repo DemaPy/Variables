@@ -47,7 +47,8 @@
         container: null,
         state: {
           placeholders: [],
-          raw_content: "",
+          raw_content: `
+          `,
           render_data: {},
         },
 
@@ -71,23 +72,6 @@
           title.textContent = value;
           return title;
         },
-
-        getPosition(editableElem) {
-          const selection = window.getSelection();
-          let currentPos = 0;
-
-          if (selection.rangeCount) {
-            const range = selection.getRangeAt(0);
-            const preCaretRange = range.cloneRange();
-            preCaretRange.selectNodeContents(editableElem);
-            preCaretRange.setEnd(range.endContainer, range.endOffset);
-            currentPos = preCaretRange.toString().length;
-          }
-
-          return currentPos;
-        },
-
-        setCursor() {},
 
         createEditorBlur() {
           const div = document.createElement("div");
@@ -113,7 +97,7 @@
 
             this.renderForm();
             // Initialize placeholders
-            ev.target.innerHTML = htmlEntities.encode(withBreakRows);
+            ev.target.innerHTML = withBreakRows
           });
 
           container.addEventListener("focus", (ev) => {
@@ -153,7 +137,7 @@
           for (const field of fields) {
             const label = document.createElement("label");
             const input = document.createElement("input");
-            input.addEventListener("change", (ev) => {
+            input.addEventListener("input", (ev) => {
               const value = ev.target.value;
               if (value.trim()) {
                 this.state.render_data = {
@@ -175,12 +159,12 @@
         },
 
         renderPreview() {
-          this.preview_container.innerHTML = "";
+          this.preview_container.innerText = "";
           const clearHTML = this.replaceNbsps(
             htmlEntities.decode(this.state.raw_content)
           );
           
-          this.preview_container.innerHTML = Mustache.render(
+          this.preview_container.innerText = Mustache.render(
             clearHTML,
             this.state.render_data
           );
